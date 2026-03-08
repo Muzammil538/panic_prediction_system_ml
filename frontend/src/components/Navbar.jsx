@@ -11,7 +11,7 @@ export default function Navbar() {
             MH
           </div>
           <span className="text-xl font-semibold text-gray-800">
-            Mental Health AI
+            Panic attack detection
           </span>
         </Link>
 

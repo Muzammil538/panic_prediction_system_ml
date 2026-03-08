@@ -165,24 +165,143 @@ def login():
 @jwt_required()
 def predict():
 
-    user = get_current_user()
-
-    if user.role != "patient":
-        return jsonify({"message": "Only patients can submit assessments"}), 403
-
+    patient_id = int(get_jwt_identity())
     data = request.json
 
-    input_data = [data.get(feature, 0) for feature in features]
-    input_array = np.array([input_data])
+    # =========================
+    # Convert Input
+    # =========================
 
-    prediction = model.predict(input_array)[0]
-    probabilities = model.predict_proba(input_array)[0]
+    age = int(data.get("age",0))
 
-    risk_score = round(probabilities[1] * 100, 2)
+    gender_map = {"Male":0,"Female":1,"Other":2}
+    gender = gender_map.get(data.get("gender"),0)
+
+    family_history = 1 if data.get("family_history") == "Yes" else 0
+    previous_anxiety = 1 if data.get("previous_anxiety") == "Yes" else 0
+
+    stress_map = {"Low":0,"Moderate":1,"High":2}
+    stress_level = stress_map.get(data.get("stress_level"),0)
+
+    sleep_map = {"<5":0,"5-7":1,">7":2}
+    sleep_hours = sleep_map.get(data.get("sleep_hours"),1)
+
+    sleep_quality_map = {"Good":0,"Disturbed":1,"Very poor":2}
+    sleep_quality = sleep_quality_map.get(data.get("sleep_quality"),0)
+
+    caffeine_map = {"None":0,"1-2":1,"3-4":2,">4":3}
+    caffeine = caffeine_map.get(data.get("caffeine"),0)
+
+    alcohol_map = {"None":0,"Occasionally":1,"Frequently":2}
+    alcohol = alcohol_map.get(data.get("alcohol"),0)
+
+    smoking = 1 if data.get("smoking") == "Yes" else 0
+
+    screen_map = {"<2 hrs":0,"2-5 hrs":1,">5 hrs":2}
+    screen_time = screen_map.get(data.get("screen_time"),1)
+
+    activity_map = {"Regular":0,"Sometimes":1,"None":2}
+    physical_activity = activity_map.get(data.get("physical_activity"),1)
+
+    support_map = {"Strong":0,"Moderate":1,"Weak":2}
+    social_support = support_map.get(data.get("social_support"),1)
+
+    duration_map = {"<5 min":0,"5-15 min":1,">15 min":2}
+    attack_duration = duration_map.get(data.get("attack_duration"),0)
+
+    impact_map = {"No":0,"Sometimes":1,"Frequently":2}
+    activity_impact = impact_map.get(data.get("activity_impact"),0)
+
+    triggers = data.get("attack_triggers",[])
+
+    trigger_stress = 1 if "During stress" in triggers else 0
+    trigger_crowd = 1 if "In crowded places" in triggers else 0
+    trigger_night = 1 if "At night" in triggers else 0
+    trigger_random = 1 if "Without reason" in triggers else 0
+    trigger_exam = 1 if "Before exams/work" in triggers else 0
+
+    symptoms = data.get("symptoms",{})
+    symptom_count = sum(symptoms.values())
+
+    history = data.get("psychiatric_history",[])
+
+    history_anxiety = 1 if "Anxiety Disorder" in history else 0
+    history_depression = 1 if "Depression" in history else 0
+    history_panic = 1 if "Panic Disorder" in history else 0
+    history_ptsd = 1 if "PTSD" in history else 0
+
+    # =========================
+    # Feature Vector
+    # =========================
+
+    input_data = np.array([[
+
+        age,
+        gender,
+        family_history,
+        previous_anxiety,
+        stress_level,
+        sleep_hours,
+        sleep_quality,
+        caffeine,
+        alcohol,
+        smoking,
+        screen_time,
+        physical_activity,
+        social_support,
+        attack_duration,
+        activity_impact,
+        trigger_stress,
+        trigger_crowd,
+        trigger_night,
+        trigger_random,
+        trigger_exam,
+        symptom_count,
+        history_anxiety,
+        history_depression,
+        history_panic,
+        history_ptsd
+
+    ]])
+
+    # =========================
+    # Prediction
+    # =========================
+
+    prediction = model.predict(input_data)[0]
+    probabilities = model.predict_proba(input_data)[0]
+
+    risk_score = round(probabilities[1] * 100,2)
     severity = calculate_severity(risk_score)
 
+    # =========================
+    # Previous Assessment
+    # =========================
+
+    previous = Assessment.query.filter_by(
+        patient_id=patient_id
+    ).order_by(Assessment.timestamp.desc()).first()
+
+    trend = "First Assessment"
+    previous_risk = None
+
+    if previous:
+
+        previous_risk = previous.risk_score
+
+        if risk_score > previous_risk:
+            trend = "Risk Increased"
+        elif risk_score < previous_risk:
+            trend = "Risk Decreased"
+        else:
+            trend = "Risk Stable"
+
+    # =========================
+    # Save New Assessment
+    # =========================
+
     assessment = Assessment(
-        patient_id=user.id,
+        patient_id=patient_id,
         risk_score=risk_score,
         severity=severity
     )
@@ -190,12 +309,40 @@ def predict():
     db.session.add(assessment)
     db.session.commit()
 
-    return jsonify({
-        "treatment_recommended": bool(prediction),
-        "risk_score": risk_score,
-        "severity_index": severity
-    })
+    # =========================
+    # Influential Factors
+    # =========================
 
+    importances = model.feature_importances_
+
+    feature_importance = sorted(
+        zip(features, importances),
+        key=lambda x: x[1],
+        reverse=True
+    )[:3]
+
+    top_factors = [f[0] for f in feature_importance]
+
+    # =========================
+    # Response
+    # =========================
+
+    return jsonify({
+
+        "assessment_id": assessment.id,
+
+        "risk_score": risk_score,
+        "severity": severity,
+
+        "previous_risk": previous_risk,
+        "trend": trend,
+
+        "top_factors": top_factors,
+
+        "date": assessment.timestamp.strftime("%Y-%m-%d"),
+        "time": assessment.timestamp.strftime("%H:%M")
+
+    })
 # ===============================
 # History (Patient Only)
 # ===============================

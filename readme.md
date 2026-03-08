@@ -254,6 +254,8 @@ Install dependencies:
 
 ```bash
 pip install -r requirements.txt
+
+pip install pandas scikit-learn flask flask-cors flask-jwt-extended flask-bcrypt flask-sqlalchemy joblib numpy
 ```
 
 Ensure these files exist:

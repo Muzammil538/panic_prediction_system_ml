@@ -1,401 +1,463 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
 import API from "../../services/api";
 import PatientSidebar from "../../components/patient/PatientSidebar";
 import PatientHeader from "../../components/patient/PatientHeader";
+import PredictionResultModal from "../../components/patient/PredictionResultModal";
 
-function InputSection({ children }) {
-  return <div className="space-y-5">{children}</div>;
-}
-
-const featureList = [
-  "Age",
-  "Gender_Male",
-  "Gender_Other",
-  "Country_Other",
-  "Country_United Kingdom",
-  "Country_United States",
-  "self_employed_Yes",
-  "family_history_Yes",
-  "work_interfere_Often",
-  "work_interfere_Rarely",
-  "work_interfere_Sometimes",
-  "no_employees_100-500",
-  "no_employees_26-100",
-  "no_employees_500-1000",
-  "no_employees_6-25",
-  "no_employees_More than 1000",
-  "remote_work_Yes",
-  "tech_company_Yes",
-  "benefits_No",
-  "benefits_Yes",
-  "care_options_Not sure",
-  "care_options_Yes",
-  "wellness_program_No",
-  "wellness_program_Yes",
-  "seek_help_No",
-  "seek_help_Yes",
-  "anonymity_No",
-  "anonymity_Yes",
-  "leave_Somewhat difficult",
-  "leave_Somewhat easy",
-  "leave_Very difficult",
-  "leave_Very easy",
-  "mental_health_consequence_No",
-  "mental_health_consequence_Yes",
-  "phys_health_consequence_No",
-  "phys_health_consequence_Yes",
-  "coworkers_Some of them",
-  "coworkers_Yes",
-  "supervisor_Some of them",
-  "supervisor_Yes",
-  "mental_health_interview_No",
-  "mental_health_interview_Yes",
-  "phys_health_interview_No",
-  "phys_health_interview_Yes",
-  "mental_vs_physical_No",
-  "mental_vs_physical_Yes",
-  "obs_consequence_Yes"
-];
-
-export default function Assessment() {
-
-  const navigate = useNavigate();
-  const [step, setStep] = useState(1);
-  const [formData, setFormData] = useState({});
+export default function PatientAssessment() {
   const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
 
-  const generateEmptyFeatureObject = () => {
-    const obj = {};
-    featureList.forEach(f => obj[f] = 0);
-    return obj;
-  };
+  const [formData, setFormData] = useState({
+    age: "",
+    gender: "",
+    family_history: "",
+    previous_anxiety: "",
 
-  const setCategory = (payload, prefix, value) => {
-    featureList.forEach(f => {
-      if (f.startsWith(prefix)) payload[f] = 0;
+    panic_frequency: "",
+    attack_triggers: [],
+    attack_duration: "",
+    activity_impact: "",
+
+    symptoms: {
+      fast_heartbeat: 0,
+      sweating: 0,
+      shaking: 0,
+      dizziness: 0,
+      chest_discomfort: 0,
+      shortness_breath: 0,
+      nausea: 0,
+      fear_losing_control: 0,
+      fear_dying: 0,
+      detached_reality: 0,
+    },
+
+    stress_level: "",
+
+    sleep_hours: "",
+    sleep_quality: "",
+    caffeine: "",
+    alcohol: "",
+    smoking: "",
+    screen_time: "",
+    physical_activity: "",
+    social_support: "",
+
+    psychiatric_history: [],
+  });
+
+  const handleChange = (e) => {
+    setFormData({
+      ...formData,
+      [e.target.name]: e.target.value,
     });
-    if (value) payload[value] = 1;
   };
 
-  const handleSubmit = async () => {
-
-    let payload = generateEmptyFeatureObject();
-    payload.Age = Number(formData.Age || 30);
-
-    // Gender
-    if (formData.gender === "Male") payload["Gender_Male"] = 1;
-    if (formData.gender === "Other") payload["Gender_Other"] = 1;
-
-    // Country
-    setCategory(payload, "Country_", formData.country);
-
-    // Self Employed
-    if (formData.selfEmployed === "Yes")
-      payload["self_employed_Yes"] = 1;
-
-    // Family History
-    if (formData.familyHistory === "Yes")
-      payload["family_history_Yes"] = 1;
-
-    // Work Interference
-    setCategory(payload, "work_interfere_", formData.workInterfere);
-
-    // Employees
-    setCategory(payload, "no_employees_", formData.employees);
-
-    // Remote Work
-    if (formData.remoteWork === "Yes")
-      payload["remote_work_Yes"] = 1;
-
-    // Tech Company
-    if (formData.techCompany === "Yes")
-      payload["tech_company_Yes"] = 1;
-
-    // Benefits
-    setCategory(payload, "benefits_", formData.benefits);
-
-    // Care Options
-    setCategory(payload, "care_options_", formData.careOptions);
-
-    // Wellness Program
-    setCategory(payload, "wellness_program_", formData.wellness);
-
-    // Seek Help
-    setCategory(payload, "seek_help_", formData.seekHelp);
-
-    // Anonymity
-    setCategory(payload, "anonymity_", formData.anonymity);
-
-    // Leave
-    setCategory(payload, "leave_", formData.leave);
-
-    // Mental Consequence
-    setCategory(payload, "mental_health_consequence_", formData.mentalConsequence);
-
-    // Physical Consequence
-    setCategory(payload, "phys_health_consequence_", formData.physConsequence);
-
-    // Coworkers
-    setCategory(payload, "coworkers_", formData.coworkers);
-
-    // Supervisor
-    setCategory(payload, "supervisor_", formData.supervisor);
-
-    // Interviews
-    setCategory(payload, "mental_health_interview_", formData.mentalInterview);
-    setCategory(payload, "phys_health_interview_", formData.physInterview);
-
-    // Mental vs Physical
-    setCategory(payload, "mental_vs_physical_", formData.mentalVsPhysical);
-
-    if (formData.obsConsequence === "Yes")
-      payload["obs_consequence_Yes"] = 1;
-
-    try {
-      setLoading(true);
-      await API.post("/predict", payload);
-      navigate("/patient/dashboard");
-    } catch (err) {
-      console.error("Assessment submission error:", err.response?.data || err.message);
-      alert("Submission failed: " + (err.response?.data?.message || err.response?.data?.msg || err.message));
-      setLoading(false);
+  const handleTrigger = (value) => {
+    if (formData.attack_triggers.includes(value)) {
+      setFormData({
+        ...formData,
+        attack_triggers: formData.attack_triggers.filter((v) => v !== value),
+      });
+    } else {
+      setFormData({
+        ...formData,
+        attack_triggers: [...formData.attack_triggers, value],
+      });
     }
   };
 
+  const handlePsychHistory = (value) => {
+    if (formData.psychiatric_history.includes(value)) {
+      setFormData({
+        ...formData,
+        psychiatric_history: formData.psychiatric_history.filter(
+          (v) => v !== value,
+        ),
+      });
+    } else {
+      setFormData({
+        ...formData,
+        psychiatric_history: [...formData.psychiatric_history, value],
+      });
+    }
+  };
+
+  const handleSymptom = (e) => {
+    const name = e.target.name;
+
+    setFormData({
+      ...formData,
+      symptoms: {
+        ...formData.symptoms,
+        [name]: e.target.checked ? 1 : 0,
+      },
+    });
+  };
+
+  const validateForm = () => {
+    if (!formData.age || !formData.gender || !formData.stress_level) {
+      alert("Please fill required fields");
+      return false;
+    }
+
+    return true;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+
+    if (!validateForm()) return;
+
+    setLoading(true);
+
+    try {
+      const symptomCount = Object.values(formData.symptoms).reduce(
+        (a, b) => a + b,
+        0,
+      );
+
+      const payload = {
+        ...formData,
+        symptom_count: symptomCount,
+      };
+
+      const res = await API.post("/predict", payload);
+
+      setResult(res.data);
+    } catch (err) {
+      console.error(err);
+      alert("Prediction failed");
+    }
+
+    setLoading(false);
+  };
 
   return (
-    <div className="flex bg-gray-50">
+    <div className="flex bg-gray-50 min-h-screen">
       <PatientSidebar />
+
       <div className="flex-1">
         <PatientHeader />
 
-        <div className="p-8 max-w-4xl">
+        <div className="p-8 max-w-5xl mx-auto">
+          <form onSubmit={handleSubmit} className="space-y-10">
+            {/* SECTION 1 */}
 
-          <div className="bg-white p-8 rounded-xl border border-gray-200 shadow-sm">
+            <div className="bg-white p-6 rounded-xl shadow">
+              <h2 className="text-xl font-semibold mb-6">
+                Section 1: Basic Details
+              </h2>
 
-            <h2 className="text-2xl font-semibold text-blue-700 mb-6">
-              Mental Health Assessment
-            </h2>
+              <div className="grid grid-cols-2 gap-4">
+                <input
+                  type="number"
+                  name="age"
+                  placeholder="Age (18-70)"
+                  min="18"
+                  max="70"
+                  value={formData.age}
+                  onChange={handleChange}
+                  className="border p-3 rounded"
+                />
 
-            {/* STEP INDICATOR */}
-            <div className="flex justify-between mb-8">
-              {[1,2,3,4,5].map((s) => (
-                <div
-                  key={s}
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium
-                  ${step === s ? "bg-blue-600 text-white" : "bg-gray-200 text-gray-600"}`}
+                <select
+                  name="gender"
+                  value={formData.gender}
+                  onChange={handleChange}
+                  className="border p-3 rounded"
                 >
-                  {s}
-                </div>
-              ))}
-            </div>
+                  <option value="">Gender</option>
+                  <option>Male</option>
+                  <option>Female</option>
+                  <option>Other</option>
+                </select>
 
-            {/* STEP CONTENT */}
-            {step === 1 && (
-              <InputSection>
-                <div>
-                  <label htmlFor="age" className="block text-gray-700 mb-1">
-                    Age
-                  </label>
-                  <input
-                    type="number"
-                    id="age"
-                    name="age"
-                    placeholder="Age"
-                    className="w-full border p-3 rounded-lg"
-                    onChange={(e)=>setFormData({...formData,Age:e.target.value})}
-                  />
-                </div>
+                <select
+                  name="family_history"
+                  value={formData.family_history}
+                  onChange={handleChange}
+                  className="border p-3 rounded"
+                >
+                  <option value="">Family History of Anxiety/Panic</option>
+                  <option>Yes</option>
+                  <option>No</option>
+                  <option>Dont know</option>
+                </select>
 
-                <div>
-                  <label htmlFor="gender" className="block text-gray-700 mb-1">
-                    Gender
-                  </label>
-                  <select
-                    id="gender"
-                    name="gender"
-                    className="w-full border p-3 rounded-lg"
-                    onChange={(e)=>setFormData({...formData,gender:e.target.value})}>
-                    <option>Female</option>
-                    <option>Male</option>
-                    <option>Other</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label htmlFor="country" className="block text-gray-700 mb-1">
-                    Country
-                  </label>
-                  <select
-                    id="country"
-                    name="country"
-                    className="w-full border p-3 rounded-lg"
-                    onChange={(e)=>setFormData({...formData,country:e.target.value})}>
-                    <option value="">Select Country</option>
-                    <option value="Country_United States">United States</option>
-                    <option value="Country_United Kingdom">United Kingdom</option>
-                    <option value="Country_Other">Other</option>
-                  </select>
-                </div>
-              </InputSection>
-            )}
-
-            {step === 2 && (
-              <InputSection>
-                <div>
-                  <label htmlFor="workInterfere" className="block text-gray-700 mb-1">
-                    Work Interference
-                  </label>
-                  <select
-                    id="workInterfere"
-                    name="workInterfere"
-                    className="w-full border p-3 rounded-lg"
-                    onChange={(e)=>setFormData({...formData,workInterfere:e.target.value})}>
-                    <option value="">Work Interference</option>
-                    <option value="work_interfere_Often">Often</option>
-                    <option value="work_interfere_Sometimes">Sometimes</option>
-                    <option value="work_interfere_Rarely">Rarely</option>
-                  </select>
-                  <p className="text-sm text-gray-500 mt-1">
-                    How often does your mental health affect your work performance?
-                  </p>
-                </div>
-
-                <div>
-                  <label htmlFor="employees" className="block text-gray-700 mb-1">
-                    Company Size
-                  </label>
-                  <select
-                    id="employees"
-                    name="employees"
-                    className="w-full border p-3 rounded-lg"
-                    onChange={(e)=>setFormData({...formData,employees:e.target.value})}>
-                    <option value="">Company Size</option>
-                    <option value="no_employees_6-25">6-25</option>
-                    <option value="no_employees_26-100">26-100</option>
-                    <option value="no_employees_100-500">100-500</option>
-                    <option value="no_employees_500-1000">500-1000</option>
-                    <option value="no_employees_More than 1000">More than 1000</option>
-                  </select>
-                  <p className="text-sm text-gray-500 mt-1">
-                    The approximate size of the company you work for.
-                  </p>
-                </div>
-              </InputSection>
-            )}
-
-            {step === 3 && (
-              <InputSection>
-                <div>
-                  <label htmlFor="benefits" className="block text-gray-700 mb-1">
-                    Benefits
-                  </label>
-                  <select
-                    id="benefits"
-                    name="benefits"
-                    className="w-full border p-3 rounded-lg"
-                    onChange={(e)=>setFormData({...formData,benefits:e.target.value})}>
-                    <option value="">Benefits</option>
-                    <option value="benefits_Yes">Yes</option>
-                    <option value="benefits_No">No</option>
-                  </select>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Does your employer provide mental health benefits?
-                  </p>
-                </div>
-
-                <div>
-                  <label htmlFor="wellness" className="block text-gray-700 mb-1">
-                    Wellness Program
-                  </label>
-                  <select
-                    id="wellness"
-                    name="wellness"
-                    className="w-full border p-3 rounded-lg"
-                    onChange={(e)=>setFormData({...formData,wellness:e.target.value})}>
-                    <option value="">Wellness Program</option>
-                    <option value="wellness_program_Yes">Yes</option>
-                    <option value="wellness_program_No">No</option>
-                  </select>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Is there a wellness program available at work?
-                  </p>
-                </div>
-              </InputSection>
-            )}
-
-            {step === 4 && (
-              <InputSection>
-                <div>
-                  <label htmlFor="mentalConsequence" className="block text-gray-700 mb-1">
-                    Mental Health Consequence
-                  </label>
-                  <select
-                    id="mentalConsequence"
-                    name="mentalConsequence"
-                    className="w-full border p-3 rounded-lg"
-                    onChange={(e)=>setFormData({...formData,mentalConsequence:e.target.value})}>
-                    <option value="">Mental Health Consequence</option>
-                    <option value="mental_health_consequence_Yes">Yes</option>
-                    <option value="mental_health_consequence_No">No</option>
-                  </select>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Would your mental health issues have consequences at work?
-                  </p>
-                </div>
-
-                <div>
-                  <label htmlFor="physConsequence" className="block text-gray-700 mb-1">
-                    Physical Health Consequence
-                  </label>
-                  <select
-                    id="physConsequence"
-                    name="physConsequence"
-                    className="w-full border p-3 rounded-lg"
-                    onChange={(e)=>setFormData({...formData,physConsequence:e.target.value})}>
-                    <option value="">Physical Health Consequence</option>
-                    <option value="phys_health_consequence_Yes">Yes</option>
-                    <option value="phys_health_consequence_No">No</option>
-                  </select>
-                  <p className="text-sm text-gray-500 mt-1">
-                    Would physical health issues affect your ability to work?
-                  </p>
-                </div>
-              </InputSection>
-            )}
-
-            {step === 5 && (
-              <div className="text-center">
-                <button
-                  onClick={handleSubmit}
-                  className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700">
-                  {loading ? "Analyzing..." : "Submit Assessment"}
-                </button>
+                <select
+                  name="previous_anxiety"
+                  value={formData.previous_anxiety}
+                  onChange={handleChange}
+                  className="border p-3 rounded"
+                >
+                  <option value="">Previously Diagnosed Anxiety</option>
+                  <option>Yes</option>
+                  <option>No</option>
+                </select>
               </div>
-            )}
-
-            <div className="flex justify-between mt-8">
-              {step > 1 && (
-                <button
-                  onClick={()=>setStep(step-1)}
-                  className="px-4 py-2 bg-gray-200 rounded-lg">
-                  Back
-                </button>
-              )}
-
-              {step < 5 && (
-                <button
-                  onClick={()=>setStep(step+1)}
-                  className="px-4 py-2 bg-blue-600 text-white rounded-lg">
-                  Next
-                </button>
-              )}
             </div>
 
-          </div>
+            {/* SECTION 2 */}
+
+            <div className="bg-white p-6 rounded-xl shadow">
+              <h2 className="text-xl font-semibold mb-6">
+                Section 2: Recent Panic Experience (Last 30 Days)
+              </h2>
+
+              <select
+                name="panic_frequency"
+                value={formData.panic_frequency}
+                onChange={handleChange}
+                className="border p-3 rounded w-full mb-4"
+              >
+                <option value="">Panic attacks in last 30 days</option>
+                <option>None</option>
+                <option>1-2</option>
+                <option>3-5</option>
+                <option>More than 5</option>
+              </select>
+
+              <p className="font-medium mb-2">When do they usually happen?</p>
+
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                {[
+                  "During stress",
+                  "In crowded places",
+                  "At night",
+                  "Without reason",
+                  "Before exams/work",
+                ].map((item) => (
+                  <label key={item}>
+                    <input
+                      type="checkbox"
+                      value={item}
+                      onChange={() => handleTrigger(item)}
+                      className="mr-2"
+                    />
+
+                    {item}
+                  </label>
+                ))}
+              </div>
+
+              <select
+                name="attack_duration"
+                value={formData.attack_duration}
+                onChange={handleChange}
+                className="border p-3 rounded w-full mb-4"
+              >
+                <option value="">Average attack duration</option>
+                <option>{"<5 min"}</option>
+                <option>5-15 min</option>
+                <option>{">15 min"}</option>
+              </select>
+
+              <select
+                name="activity_impact"
+                value={formData.activity_impact}
+                onChange={handleChange}
+                className="border p-3 rounded w-full"
+              >
+                <option value="">Do attacks affect daily activities?</option>
+                <option>No</option>
+                <option>Sometimes</option>
+                <option>Frequently</option>
+              </select>
+            </div>
+
+            {/* SECTION 3 */}
+
+            <div className="bg-white p-6 rounded-xl shadow">
+              <h2 className="text-xl font-semibold mb-6">
+                Section 3: Symptoms During Attack
+              </h2>
+
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  ["fast_heartbeat", "Fast heartbeat"],
+                  ["sweating", "Sweating"],
+                  ["shaking", "Shaking"],
+                  ["dizziness", "Dizziness"],
+                  ["chest_discomfort", "Chest discomfort"],
+                  ["shortness_breath", "Shortness of breath"],
+                  ["nausea", "Nausea"],
+                  ["fear_losing_control", "Fear of losing control"],
+                  ["fear_dying", "Fear of dying"],
+                  ["detached_reality", "Feeling detached from reality"],
+                ].map(([key, label]) => (
+                  <label key={key}>
+                    <input
+                      type="checkbox"
+                      name={key}
+                      onChange={handleSymptom}
+                      className="mr-2"
+                    />
+
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            {/* SECTION 4 */}
+
+            <div className="bg-white p-6 rounded-xl shadow">
+              <h2 className="text-xl font-semibold mb-6">
+                Section 4: Stress Level
+              </h2>
+
+              <select
+                name="stress_level"
+                value={formData.stress_level}
+                onChange={handleChange}
+                className="border p-3 rounded w-full"
+              >
+                <option value="">Current Stress Level</option>
+                <option>Low</option>
+                <option>Moderate</option>
+                <option>High</option>
+              </select>
+            </div>
+
+            {/* SECTION 5 */}
+
+            <div className="bg-white p-6 rounded-xl shadow">
+              <h2 className="text-xl font-semibold mb-6">
+                Section 5: Lifestyle Factors
+              </h2>
+
+              <div className="grid grid-cols-2 gap-4">
+                <select
+                  name="sleep_hours"
+                  onChange={handleChange}
+                  className="border p-3 rounded"
+                >
+                  <option value="">Sleep Hours</option>
+                  <option>{"<5"}</option>
+                  <option>5-7</option>
+                  <option>{">7"}</option>
+                </select>
+
+                <select
+                  name="sleep_quality"
+                  onChange={handleChange}
+                  className="border p-3 rounded"
+                >
+                  <option value="">Sleep Quality</option>
+                  <option>Good</option>
+                  <option>Disturbed</option>
+                  <option>Very poor</option>
+                </select>
+
+                <select
+                  name="caffeine"
+                  onChange={handleChange}
+                  className="border p-3 rounded"
+                >
+                  <option value="">Caffeine Intake</option>
+                  <option>None</option>
+                  <option>1-2</option>
+                  <option>3-4</option>
+                  <option>{">4"}</option>
+                </select>
+
+                <select
+                  name="alcohol"
+                  onChange={handleChange}
+                  className="border p-3 rounded"
+                >
+                  <option value="">Alcohol Use</option>
+                  <option>None</option>
+                  <option>Occasionally</option>
+                  <option>Frequently</option>
+                </select>
+
+                <select
+                  name="smoking"
+                  onChange={handleChange}
+                  className="border p-3 rounded"
+                >
+                  <option value="">Smoking</option>
+                  <option>Yes</option>
+                  <option>No</option>
+                </select>
+
+                <select
+                  name="screen_time"
+                  onChange={handleChange}
+                  className="border p-3 rounded"
+                >
+                  <option value="">Screen Time</option>
+                  <option>{"<2 hrs"}</option>
+                  <option>2-5 hrs</option>
+                  <option>{">5 hrs"}</option>
+                </select>
+
+                <select
+                  name="physical_activity"
+                  onChange={handleChange}
+                  className="border p-3 rounded"
+                >
+                  <option value="">Physical Activity</option>
+                  <option>Regular</option>
+                  <option>Sometimes</option>
+                  <option>None</option>
+                </select>
+
+                <select
+                  name="social_support"
+                  onChange={handleChange}
+                  className="border p-3 rounded"
+                >
+                  <option value="">Social Support</option>
+                  <option>Strong</option>
+                  <option>Moderate</option>
+                  <option>Weak</option>
+                </select>
+              </div>
+            </div>
+
+            {/* SECTION 6 */}
+
+            <div className="bg-white p-6 rounded-xl shadow">
+              <h2 className="text-xl font-semibold mb-6">
+                Section 6: Psychiatric History
+              </h2>
+
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  "None",
+                  "Anxiety Disorder",
+                  "Depression",
+                  "Panic Disorder",
+                  "PTSD",
+                  "Other",
+                ].map((item) => (
+                  <label key={item}>
+                    <input
+                      type="checkbox"
+                      value={item}
+                      onChange={() => handlePsychHistory(item)}
+                      className="mr-2"
+                    />
+
+                    {item}
+                  </label>
+                ))}
+              </div>
+            </div>
+
+            <button
+              type="submit"
+              className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700"
+            >
+              {loading ? "Submitting..." : "Submit Assessment"}
+            </button>
+          </form>
         </div>
       </div>
+      <PredictionResultModal result={result} onClose={() => setResult(null)} />
     </div>
   );
 }

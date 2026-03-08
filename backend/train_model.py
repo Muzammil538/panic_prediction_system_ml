@@ -9,7 +9,7 @@ from sklearn.metrics import classification_report
 # ===============================
 # 1️⃣ LOAD DATA
 # ===============================
-df = pd.read_csv("../survey.csv")
+df = pd.read_csv("../datasets/survey.csv")
 
 # ===============================
 # 2️⃣ BASIC CLEANING

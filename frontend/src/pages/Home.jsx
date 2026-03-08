@@ -11,7 +11,7 @@ export default function Home() {
         <div className="max-w-6xl mx-auto px-6 py-20 grid md:grid-cols-2 gap-10 items-center">
           <div>
             <h1 className="text-4xl md:text-5xl font-bold text-blue-700 mb-6">
-              AI-Powered Mental Health Risk Assessment
+              Panic attack frequency detection
             </h1>
             <p className="text-lg text-gray-600 mb-6">
               A clinically inspired digital platform designed to evaluate
