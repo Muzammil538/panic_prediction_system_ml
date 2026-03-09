@@ -14,7 +14,7 @@ from flask_bcrypt import Bcrypt
 from flask_sqlalchemy import SQLAlchemy
 import joblib
 import numpy as np
-from datetime import datetime
+from datetime import datetime, timezone
 
 # ===============================
 # App Config
@@ -66,7 +66,8 @@ class Assessment(db.Model):
     patient_id = db.Column(db.Integer, db.ForeignKey("user.id"), nullable=False)
     risk_score = db.Column(db.Float, nullable=False)
     severity = db.Column(db.String(50), nullable=False)
-    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+    # Store timestamps in UTC so clients can render local time correctly
+    timestamp = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 # ===============================
 # Create Database
@@ -90,6 +91,18 @@ def calculate_severity(risk_score):
 def get_current_user():
     user_id = int(get_jwt_identity())
     return db.session.get(User, user_id)
+
+
+def iso_timestamp(dt):
+    """Return an ISO-8601 timestamp string with timezone information.
+
+    If dt is naive, assume it is UTC (stored by the server) and attach UTC tzinfo.
+    """
+    if not dt:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.isoformat()
 
 # ===============================
 # Routes
@@ -341,6 +354,9 @@ def predict():
 
         "top_factors": top_factors,
 
+        # Include ISO timestamp so clients can render local time correctly
+        "timestamp": iso_timestamp(assessment.timestamp),
+
         "date": assessment.timestamp.strftime("%Y-%m-%d"),
 
         "time": assessment.timestamp.strftime("%H:%M")
@@ -365,7 +381,7 @@ def history():
         {
             "risk_score": r.risk_score,
             "severity": r.severity,
-            "timestamp": r.timestamp.isoformat()
+            "timestamp": iso_timestamp(r.timestamp)
         }
         for r in records
     ]

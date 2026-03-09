@@ -3,6 +3,14 @@ import React from "react";
 export default function PredictionResultModal({ result, onClose }) {
   if (!result) return null;
 
+  const timestamp = result.timestamp ? new Date(result.timestamp) : null;
+  const displayDate = timestamp
+    ? timestamp.toLocaleDateString()
+    : result.date;
+  const displayTime = timestamp
+    ? timestamp.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+    : result.time;
+
   return (
     <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
       <div className="bg-white w-[500px] rounded-xl shadow-lg p-6">
@@ -79,9 +87,9 @@ export default function PredictionResultModal({ result, onClose }) {
         <div className="border-t pt-3 mt-3 text-sm text-gray-600">
           <p>Assessment ID: {result.assessment_id}</p>
 
-          <p>Date: {result.date}</p>
+          <p>Date: {displayDate}</p>
 
-          <p>Time: {result.time}</p>
+          <p>Time: {displayTime}</p>
         </div>
 
         {/* Close Button */}
