@@ -66,22 +66,46 @@ export default function PatientAssessment() {
       });
     }
   };
-
   const handlePsychHistory = (value) => {
-    if (formData.psychiatric_history.includes(value)) {
+    if (value === "None") {
       setFormData({
         ...formData,
-        psychiatric_history: formData.psychiatric_history.filter(
-          (v) => v !== value,
-        ),
+        psychiatric_history: ["None"],
       });
-    } else {
-      setFormData({
-        ...formData,
-        psychiatric_history: [...formData.psychiatric_history, value],
-      });
+      return;
     }
+
+    let updated = [...formData.psychiatric_history];
+
+    updated = updated.filter((item) => item !== "None");
+
+    if (updated.includes(value)) {
+      updated = updated.filter((item) => item !== value);
+    } else {
+      updated.push(value);
+    }
+
+    setFormData({
+      ...formData,
+      psychiatric_history: updated,
+    });
   };
+
+  // const handlePsychHistory = (value) => {
+  //   if (formData.psychiatric_history.includes(value)) {
+  //     setFormData({
+  //       ...formData,
+  //       psychiatric_history: formData.psychiatric_history.filter(
+  //         (v) => v !== value,
+  //       ),
+  //     });
+  //   } else {
+  //     setFormData({
+  //       ...formData,
+  //       psychiatric_history: [...formData.psychiatric_history, value],
+  //     });
+  //   }
+  // };
 
   const handleSymptom = (e) => {
     const name = e.target.name;
@@ -98,6 +122,20 @@ export default function PatientAssessment() {
   const validateForm = () => {
     if (!formData.age || !formData.gender || !formData.stress_level) {
       alert("Please fill required fields");
+      return false;
+    }
+    if (!formData.age) {
+      alert("Age is required");
+      return false;
+    }
+
+    if (formData.age < 18 || formData.age > 70) {
+      alert("Age must be between 18 and 70");
+      return false;
+    }
+
+    if (!formData.gender) {
+      alert("Please select gender");
       return false;
     }
 
@@ -127,6 +165,14 @@ export default function PatientAssessment() {
       setResult(res.data);
     } catch (err) {
       console.error(err);
+      alert("Prediction failed");
+    }
+
+    if (!validateForm()) return;
+
+    try {
+      await API.post("/predict", formData);
+    } catch (err) {
       alert("Prediction failed");
     }
 
@@ -437,9 +483,10 @@ export default function PatientAssessment() {
                   <label key={item}>
                     <input
                       type="checkbox"
-                      value={item}
-                      onChange={() => handlePsychHistory(item)}
-                      className="mr-2"
+                      checked={formData.psychiatric_history.includes(
+                        "Anxiety Disorder","Depression","Panic Disorder","PTSD","Other"
+                      )}
+                      disabled={formData.psychiatric_history.includes("None")}
                     />
 
                     {item}

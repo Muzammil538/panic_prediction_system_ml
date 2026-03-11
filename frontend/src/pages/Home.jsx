@@ -37,7 +37,7 @@ export default function Home() {
       </section>
 
       {/* ================= ABOUT PANIC ATTACK ================= */}
-      <section className="max-w-6xl mx-auto px-6 py-16">
+      <section className="max-w-6xl mx-auto px-6 py-16" id="about">
         <h2 className="text-3xl font-semibold text-blue-700 mb-6">
           What is a Panic Attack?
         </h2>
@@ -51,7 +51,7 @@ export default function Home() {
       </section>
 
       {/* ================= SYMPTOMS ================= */}
-      <section className="bg-white py-16 border-y border-gray-200">
+      <section className="bg-white py-16 border-y border-gray-200" id="#symptoms">
         <div className="max-w-6xl mx-auto px-6">
           <h2 className="text-3xl font-semibold text-blue-700 mb-10 text-center">
             Common Symptoms
@@ -120,7 +120,7 @@ export default function Home() {
       </section>
 
       {/* ================= TREATMENT ================= */}
-      <section className="max-w-6xl mx-auto px-6 py-16">
+      <section className="max-w-6xl mx-auto px-6 py-16" id="#treatment">
         <h2 className="text-3xl font-semibold text-blue-700 mb-6">
           Treatment & Support
         </h2>

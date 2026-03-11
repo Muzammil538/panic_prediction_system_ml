@@ -131,6 +131,9 @@ def register():
 
     if User.query.filter_by(email=email).first():
         return jsonify({"message": "Email already exists"}), 400
+    
+    if len(password) < 8:
+        return jsonify({"message": "Password must be at least 8 characters"}), 400
 
     hashed_pw = bcrypt.generate_password_hash(password).decode("utf-8")
 
@@ -325,15 +328,11 @@ def predict():
     # Influential Factors
     # -------------------------
 
-    importances = model.feature_importances_
+    contribution = input_df.iloc[0] * model.feature_importances_
 
-    feature_importance = sorted(
-        zip(features, importances),
-        key=lambda x: x[1],
-        reverse=True
-    )[:3]
+    top = contribution.sort_values(ascending=False).head(3)
 
-    top_factors = [f[0] for f in feature_importance]
+    top_factors = list(top.index)
 
 
     # -------------------------
