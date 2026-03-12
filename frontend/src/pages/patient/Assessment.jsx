@@ -67,7 +67,17 @@ export default function PatientAssessment() {
     }
   };
   const handlePsychHistory = (value) => {
+    // Selecting "None" should clear all other options.
     if (value === "None") {
+      if (formData.psychiatric_history.includes("None")) {
+        // Uncheck "None" to allow selecting other options.
+        setFormData({
+          ...formData,
+          psychiatric_history: [],
+        });
+        return;
+      }
+
       setFormData({
         ...formData,
         psychiatric_history: ["None"],
@@ -75,9 +85,10 @@ export default function PatientAssessment() {
       return;
     }
 
-    let updated = [...formData.psychiatric_history];
-
-    updated = updated.filter((item) => item !== "None");
+    // Selecting any other option should remove "None" if it was selected.
+    let updated = [...formData.psychiatric_history].filter(
+      (item) => item !== "None",
+    );
 
     if (updated.includes(value)) {
       updated = updated.filter((item) => item !== value);
@@ -479,19 +490,25 @@ export default function PatientAssessment() {
                   "Panic Disorder",
                   "PTSD",
                   "Other",
-                ].map((item) => (
-                  <label key={item}>
-                    <input
-                      type="checkbox"
-                      checked={formData.psychiatric_history.includes(
-                        "Anxiety Disorder","Depression","Panic Disorder","PTSD","Other"
-                      )}
-                      disabled={formData.psychiatric_history.includes("None")}
-                    />
+                ].map((item) => {
+                  const isNoneOption = item === "None";
+                  const isNoneSelected = formData.psychiatric_history.includes("None");
 
-                    {item}
-                  </label>
-                ))}
+                  return (
+                    <label key={item}>
+                      <input
+                        type="checkbox"
+                        value={item}
+                        checked={formData.psychiatric_history.includes(item)}
+                        disabled={isNoneOption ? !isNoneSelected && formData.psychiatric_history.length > 0 : isNoneSelected}
+                        onChange={() => handlePsychHistory(item)}
+                        className="mr-2"
+                      />
+
+                      {item}
+                    </label>
+                  );
+                })}
               </div>
             </div>
 
