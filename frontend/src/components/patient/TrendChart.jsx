@@ -16,20 +16,27 @@ export default function TrendChart({ data }) {
       </h3>
 
       <ResponsiveContainer width="100%" height={300}>
-        <LineChart data={data}>
+        <LineChart data={data} margin={{ right: 30 }}>
           <CartesianGrid strokeDasharray="3 3" />
 
-          <XAxis dataKey="date" />
+          <XAxis
+            dataKey="timestampMs"
+            tickFormatter={(value) => new Date(value).toLocaleDateString()}
+          />
 
           <YAxis domain={[0, 100]} />
 
-          <Tooltip />
+          <Tooltip
+            formatter={(value) => `${value}%`}
+            labelFormatter={(label) => new Date(label).toLocaleString()}
+          />
 
           <Line
             type="monotone"
             dataKey="risk"
             stroke="#2563eb"
             strokeWidth={3}
+            activeDot={{ r: 6 }}
           />
         </LineChart>
       </ResponsiveContainer>

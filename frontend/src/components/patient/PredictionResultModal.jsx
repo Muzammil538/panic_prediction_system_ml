@@ -70,18 +70,6 @@ export default function PredictionResultModal({ result, onClose }) {
           </div>
         )}
 
-        {/* Influential Factors */}
-
-        <div className="mb-4">
-          <p className="text-gray-600 mb-2">Most Influential Factors</p>
-
-          <ul className="list-disc pl-5 text-gray-700">
-            {result.top_factors.map((factor, index) => (
-              <li key={index}>{factor}</li>
-            ))}
-          </ul>
-        </div>
-
         {/* Metadata */}
 
         <div className="border-t pt-3 mt-3 text-sm text-gray-600">

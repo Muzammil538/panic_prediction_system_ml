@@ -78,11 +78,19 @@ export default function PatientDashboard() {
     setRefreshing(false);
   };
 
-  // Format chart data
-  const trendData = history.map((item, index) => ({
-    date: new Date(item.timestamp).toLocaleDateString(),
-    risk: item.risk_score,
-  }));
+  // Format chart data (sorted by timestamp so tooltip works consistently)
+  const trendData = [...history]
+    .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp))
+    .map((item, index) => {
+      const timeMs = new Date(item.timestamp).getTime();
+
+      return {
+        // Ensure unique x-axis values even if timestamps are identical
+        timestampMs: timeMs + index,
+        dateLabel: new Date(item.timestamp).toLocaleString(),
+        risk: item.risk_score,
+      };
+    });
 
   const latest = history.length > 0 ? history[history.length - 1] : null;
 

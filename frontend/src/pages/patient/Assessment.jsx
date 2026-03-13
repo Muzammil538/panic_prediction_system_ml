@@ -102,22 +102,7 @@ export default function PatientAssessment() {
     });
   };
 
-  // const handlePsychHistory = (value) => {
-  //   if (formData.psychiatric_history.includes(value)) {
-  //     setFormData({
-  //       ...formData,
-  //       psychiatric_history: formData.psychiatric_history.filter(
-  //         (v) => v !== value,
-  //       ),
-  //     });
-  //   } else {
-  //     setFormData({
-  //       ...formData,
-  //       psychiatric_history: [...formData.psychiatric_history, value],
-  //     });
-  //   }
-  // };
-
+ 
   const handleSymptom = (e) => {
     const name = e.target.name;
 
@@ -177,17 +162,9 @@ export default function PatientAssessment() {
     } catch (err) {
       console.error(err);
       alert("Prediction failed");
+    } finally {
+      setLoading(false);
     }
-
-    if (!validateForm()) return;
-
-    try {
-      await API.post("/predict", formData);
-    } catch (err) {
-      alert("Prediction failed");
-    }
-
-    setLoading(false);
   };
 
   return (
