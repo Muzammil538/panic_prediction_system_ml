@@ -4,6 +4,7 @@ import PatientSidebar from "../../components/patient/PatientSidebar";
 import PatientHeader from "../../components/patient/PatientHeader";
 import RiskSummaryCard from "../../components/patient/RiskSummaryCard";
 import TrendChart from "../../components/patient/TrendChart";
+import LiveHealthChart from "../../components/LiveHealthChart";
 
 export default function PatientDashboard() {
   const [history, setHistory] = useState([]);
@@ -12,12 +13,16 @@ export default function PatientDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const pageVisibleRef = useRef(true);
   const pollIntervalRef = useRef(null);
+  const [liveData, setLiveData] = useState([]);
 
   // Handle page visibility changes (tab focus)
   useEffect(() => {
     const handleVisibilityChange = () => {
       pageVisibleRef.current = !document.hidden;
-      console.log("Page visibility changed:", pageVisibleRef.current ? "visible" : "hidden");
+      console.log(
+        "Page visibility changed:",
+        pageVisibleRef.current ? "visible" : "hidden",
+      );
       if (pageVisibleRef.current) {
         // Page became visible, refresh data immediately
         console.log("Refreshing data because page became visible");
@@ -50,13 +55,26 @@ export default function PatientDashboard() {
     };
   }, []);
 
+  useEffect(() => {
+    fetchHistory();
+    fetchDoctorStatus();
+    fetchLiveData();
+
+    const interval = setInterval(fetchLiveData, 5000);
+
+    return () => clearInterval(interval);
+  }, []);
+
   const fetchHistory = async () => {
     try {
       const res = await API.get("/history");
       setHistory(res.data);
       setLoading(false);
     } catch (err) {
-      console.error("Error fetching history:", err.response?.data || err.message);
+      console.error(
+        "Error fetching history:",
+        err.response?.data || err.message,
+      );
       setLoading(false);
     }
   };
@@ -67,7 +85,10 @@ export default function PatientDashboard() {
       console.log("Doctor status response:", res.data);
       setDoctorStatus(res.data);
     } catch (err) {
-      console.error("Doctor status fetch failed:", err.response?.data || err.message);
+      console.error(
+        "Doctor status fetch failed:",
+        err.response?.data || err.message,
+      );
     }
   };
 
@@ -76,6 +97,15 @@ export default function PatientDashboard() {
     await fetchHistory();
     await fetchDoctorStatus();
     setRefreshing(false);
+  };
+
+  const fetchLiveData = async () => {
+    try {
+      const res = await API.get("/live-data");
+      setLiveData(res.data);
+    } catch {
+      console.log("Live data error");
+    }
   };
 
   // Format chart data (sorted by timestamp so tooltip works consistently)
@@ -112,6 +142,8 @@ export default function PatientDashboard() {
               />
 
               <TrendChart data={trendData} />
+
+              <LiveHealthChart data={liveData} />
 
               <div className="bg-white border border-gray-200 rounded-xl p-6 shadow-sm">
                 <div className="flex justify-between items-center mb-4">

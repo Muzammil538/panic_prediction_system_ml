@@ -14,7 +14,7 @@ from flask_bcrypt import Bcrypt
 from flask_sqlalchemy import SQLAlchemy
 import joblib
 import numpy as np
-from datetime import datetime, timezone
+from datetime import datetime, timezone,timedelta
 
 # ===============================
 # App Config
@@ -28,6 +28,8 @@ CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}})
 app.config["SQLALCHEMY_DATABASE_URI"] = "sqlite:///database.db"
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 
+
+app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=5)
 # Strong JWT secret (32+ chars)
 app.config["JWT_SECRET_KEY"] = "super-secret-key-change-this-very-long-secure-2026"
 
@@ -68,6 +70,13 @@ class Assessment(db.Model):
     severity = db.Column(db.String(50), nullable=False)
     # Store timestamps in UTC so clients can render local time correctly
     timestamp = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
+    
+class LiveHealthData(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    patient_id = db.Column(db.Integer)
+    heart_rate = db.Column(db.Float)
+    stress_level = db.Column(db.Float)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
 
 # ===============================
 # Create Database
@@ -181,113 +190,37 @@ def login():
 @jwt_required()
 def predict():
 
+    import pandas as pd
+
     patient_id = int(get_jwt_identity())
     data = request.json
 
-    import pandas as pd
-
-    # -------------------------
-    # Convert Inputs
-    # -------------------------
-
-    age = int(data.get("age", 0))
-
-    gender = data.get("gender")
-
-    family_history = data.get("family_history")
-
-    stress_level = data.get("stress_level")
-
-    alcohol = data.get("alcohol")
-
-    symptoms = data.get("symptoms", {})
-    symptom_count = sum(symptoms.values())
-
-    # -------------------------
-    # Create Feature Dictionary
-    # -------------------------
+    # -----------------------
+    # Create input dataframe
+    # -----------------------
 
     input_dict = {}
 
-    # initialize all features to 0
     for feature in features:
-        input_dict[feature] = 0
-
-
-    # -------------------------
-    # Fill Features
-    # -------------------------
-
-    if "Age" in input_dict:
-        input_dict["Age"] = age
-
-
-    # Gender encoding
-    if gender == "Male":
-        input_dict["Gender_Male"] = 1
-
-    elif gender == "Other":
-        input_dict["Gender_Other"] = 1
-
-
-    # Family history
-    if family_history == "Yes":
-        if "family_history_Yes" in input_dict:
-            input_dict["family_history_Yes"] = 1
-
-
-    # Stress level → work_interfere mapping
-    if stress_level == "High":
-        if "work_interfere_Often" in input_dict:
-            input_dict["work_interfere_Often"] = 1
-
-    elif stress_level == "Moderate":
-        if "work_interfere_Sometimes" in input_dict:
-            input_dict["work_interfere_Sometimes"] = 1
-
-    elif stress_level == "Low":
-        if "work_interfere_Rarely" in input_dict:
-            input_dict["work_interfere_Rarely"] = 1
-
-
-    # Alcohol mapping
-    if alcohol == "Frequently":
-        if "mental_health_consequence_Yes" in input_dict:
-            input_dict["mental_health_consequence_Yes"] = 1
-
-
-    # Symptom count as proxy for health consequence
-    if symptom_count > 4:
-        if "phys_health_consequence_Yes" in input_dict:
-            input_dict["phys_health_consequence_Yes"] = 1
-
-
-    # -------------------------
-    # Convert to DataFrame
-    # -------------------------
+        input_dict[feature] = data.get(feature, 0)
 
     input_df = pd.DataFrame([input_dict])
 
-    # Ensure correct feature order
-    input_df = input_df[features]
 
-
-    # -------------------------
+    # -----------------------
     # Prediction
-    # -------------------------
+    # -----------------------
 
     prediction = model.predict(input_df)[0]
-
     probabilities = model.predict_proba(input_df)[0]
 
     risk_score = round(probabilities[1] * 100, 2)
-
     severity = calculate_severity(risk_score)
 
 
-    # -------------------------
+    # -----------------------
     # Previous Assessment
-    # -------------------------
+    # -----------------------
 
     previous = Assessment.query.filter_by(
         patient_id=patient_id
@@ -297,22 +230,19 @@ def predict():
     trend = "First Assessment"
 
     if previous:
-
         previous_risk = previous.risk_score
 
         if risk_score > previous_risk:
             trend = "Risk Increased"
-
         elif risk_score < previous_risk:
             trend = "Risk Decreased"
-
         else:
             trend = "Risk Stable"
 
 
-    # -------------------------
+    # -----------------------
     # Save Assessment
-    # -------------------------
+    # -----------------------
 
     assessment = Assessment(
         patient_id=patient_id,
@@ -324,42 +254,45 @@ def predict():
     db.session.commit()
 
 
-    # -------------------------
-    # Influential Factors
-    # -------------------------
+    # -----------------------
+    # Influential Factors (REAL FIX 🔥)
+    # -----------------------
 
-    contribution = input_df.iloc[0] * model.feature_importances_
+    # per-input contribution
+    contributions = input_df.iloc[0] * model.feature_importances_
 
-    top = contribution.sort_values(ascending=False).head(3)
+    top = contributions.sort_values(ascending=False).head(3)
 
-    top_factors = list(top.index)
+    # Make readable names
+    readable = {
+        "Heart_Rate": "High Heart Rate",
+        "Sweating": "Excess Sweating",
+        "Shortness_of_Breath": "Breathing Difficulty",
+        "Chest_Pain": "Chest Pain",
+        "Dizziness": "Dizziness",
+        "Trembling": "Trembling",
+        "Sleep_Hours": "Poor Sleep",
+        "Alcohol_Consumption": "Alcohol Usage",
+        "Smoking": "Smoking Habit",
+        "Caffeine_Intake": "High Caffeine"
+    }
+
+    top_factors = [readable.get(f, f) for f in top.index]
 
 
-    # -------------------------
+    # -----------------------
     # Response
-    # -------------------------
+    # -----------------------
 
     return jsonify({
-
         "assessment_id": assessment.id,
-
         "risk_score": risk_score,
-
         "severity": severity,
-
         "previous_risk": previous_risk,
-
         "trend": trend,
-
         "top_factors": top_factors,
-
-        # Include ISO timestamp so clients can render local time correctly
-        "timestamp": iso_timestamp(assessment.timestamp),
-
         "date": assessment.timestamp.strftime("%Y-%m-%d"),
-
         "time": assessment.timestamp.strftime("%H:%M")
-
     })
 # ===============================
 # History (Patient Only)
@@ -602,6 +535,44 @@ def doctor_status():
     print(f"Returning response: {response}")
     return jsonify(response)
 
+
+@app.route("/live-data", methods=["POST"])
+@jwt_required()
+def post_live_data():
+
+    patient_id = int(get_jwt_identity())
+    data = request.json
+
+    record = LiveHealthData(
+        patient_id=patient_id,
+        heart_rate=data.get("heart_rate"),
+        stress_level=data.get("stress_level")
+    )
+
+    db.session.add(record)
+    db.session.commit()
+
+    return jsonify({"message": "Live data stored"})
+
+
+@app.route("/live-data", methods=["GET"])
+@jwt_required()
+def get_live_data():
+
+    patient_id = int(get_jwt_identity())
+
+    records = LiveHealthData.query.filter_by(
+        patient_id=patient_id
+    ).order_by(LiveHealthData.timestamp.desc()).limit(20).all()
+
+    return jsonify([
+        {
+            "heart_rate": r.heart_rate,
+            "stress_level": r.stress_level,
+            "time": r.timestamp.strftime("%H:%M:%S")
+        }
+        for r in records
+    ])
 
 # ===============================
 # JWT Error Handlers

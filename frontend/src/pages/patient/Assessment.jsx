@@ -2,135 +2,49 @@ import { useState } from "react";
 import API from "../../services/api";
 import PatientSidebar from "../../components/patient/PatientSidebar";
 import PatientHeader from "../../components/patient/PatientHeader";
-import PredictionResultModal from "../../components/patient/PredictionResultModal";
 
 export default function PatientAssessment() {
-  const [loading, setLoading] = useState(false);
-  const [result, setResult] = useState(null);
+  const [form, setForm] = useState({
+    Age: "",
+    Gender: "",
+    Panic_Attack_Frequency: "",
+    Duration_Minutes: "",
+    Trigger: "",
 
-  const [formData, setFormData] = useState({
-    age: "",
-    gender: "",
-    family_history: "",
-    previous_anxiety: "",
+    Heart_Rate: 0,
+    Sweating: 0,
+    Shortness_of_Breath: 0,
+    Dizziness: 0,
+    Chest_Pain: 0,
+    Trembling: 0,
 
-    panic_frequency: "",
-    attack_triggers: [],
-    attack_duration: "",
-    activity_impact: "",
+    Sleep_Hours: "",
+    Caffeine_Intake: "",
+    Alcohol_Consumption: "",
+    Smoking: "",
+    Exercise_Frequency: "",
 
-    symptoms: {
-      fast_heartbeat: 0,
-      sweating: 0,
-      shaking: 0,
-      dizziness: 0,
-      chest_discomfort: 0,
-      shortness_breath: 0,
-      nausea: 0,
-      fear_losing_control: 0,
-      fear_dying: 0,
-      detached_reality: 0,
-    },
-
-    stress_level: "",
-
-    sleep_hours: "",
-    sleep_quality: "",
-    caffeine: "",
-    alcohol: "",
-    smoking: "",
-    screen_time: "",
-    physical_activity: "",
-    social_support: "",
-
-    psychiatric_history: [],
+    Medical_History: "",
+    Medication: "",
   });
 
+  const [result, setResult] = useState(null);
+
   const handleChange = (e) => {
-    setFormData({
-      ...formData,
-      [e.target.name]: e.target.value,
-    });
+    setForm({ ...form, [e.target.name]: e.target.value });
   };
 
-  const handleTrigger = (value) => {
-    if (formData.attack_triggers.includes(value)) {
-      setFormData({
-        ...formData,
-        attack_triggers: formData.attack_triggers.filter((v) => v !== value),
-      });
-    } else {
-      setFormData({
-        ...formData,
-        attack_triggers: [...formData.attack_triggers, value],
-      });
-    }
-  };
-  const handlePsychHistory = (value) => {
-    // Selecting "None" should clear all other options.
-    if (value === "None") {
-      if (formData.psychiatric_history.includes("None")) {
-        // Uncheck "None" to allow selecting other options.
-        setFormData({
-          ...formData,
-          psychiatric_history: [],
-        });
-        return;
-      }
-
-      setFormData({
-        ...formData,
-        psychiatric_history: ["None"],
-      });
-      return;
-    }
-
-    // Selecting any other option should remove "None" if it was selected.
-    let updated = [...formData.psychiatric_history].filter(
-      (item) => item !== "None",
-    );
-
-    if (updated.includes(value)) {
-      updated = updated.filter((item) => item !== value);
-    } else {
-      updated.push(value);
-    }
-
-    setFormData({
-      ...formData,
-      psychiatric_history: updated,
-    });
+  const handleSlider = (name, value) => {
+    setForm({ ...form, [name]: value });
   };
 
- 
-  const handleSymptom = (e) => {
-    const name = e.target.name;
-
-    setFormData({
-      ...formData,
-      symptoms: {
-        ...formData.symptoms,
-        [name]: e.target.checked ? 1 : 0,
-      },
-    });
-  };
-
-  const validateForm = () => {
-    if (!formData.age || !formData.gender || !formData.stress_level) {
-      alert("Please fill required fields");
-      return false;
-    }
-    if (!formData.age) {
-      alert("Age is required");
-      return false;
-    }
-
-    if (formData.age < 18 || formData.age > 70) {
+  const validate = () => {
+    if (!form.Age || form.Age < 18 || form.Age > 70) {
       alert("Age must be between 18 and 70");
       return false;
     }
 
-    if (!formData.gender) {
+    if (!form.Gender) {
       alert("Please select gender");
       return false;
     }
@@ -138,34 +52,31 @@ export default function PatientAssessment() {
     return true;
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-
-    if (!validateForm()) return;
-
-    setLoading(true);
+  const handleSubmit = async () => {
+    if (!validate()) return;
 
     try {
-      const symptomCount = Object.values(formData.symptoms).reduce(
-        (a, b) => a + b,
-        0,
-      );
-
-      const payload = {
-        ...formData,
-        symptom_count: symptomCount,
-      };
-
-      const res = await API.post("/predict", payload);
-
+      const res = await API.post("/predict", form);
       setResult(res.data);
     } catch (err) {
-      console.error(err);
-      alert("Prediction failed");
-    } finally {
-      setLoading(false);
+      alert(err.response?.data?.message || "Prediction failed");
     }
   };
+
+  const Slider = ({ label, name }) => (
+    <div className="space-y-1">
+      <label className="text-gray-700 font-medium">{label}</label>
+      <input
+        type="range"
+        min="0"
+        max="5"
+        value={form[name]}
+        onChange={(e) => handleSlider(name, Number(e.target.value))}
+        className="w-full"
+      />
+      <div className="text-sm text-gray-500">Severity: {form[name]}</div>
+    </div>
+  );
 
   return (
     <div className="flex bg-gray-50 min-h-screen">
@@ -174,331 +85,231 @@ export default function PatientAssessment() {
       <div className="flex-1">
         <PatientHeader />
 
-        <div className="p-8 max-w-5xl mx-auto">
-          <form onSubmit={handleSubmit} className="space-y-10">
-            {/* SECTION 1 */}
+        <div className="p-8 max-w-5xl mx-auto space-y-8">
 
-            <div className="bg-white p-6 rounded-xl shadow">
-              <h2 className="text-xl font-semibold mb-6">
-                Section 1: Basic Details
-              </h2>
+          <h1 className="text-2xl font-semibold text-gray-800">
+            Panic Assessment Form
+          </h1>
 
-              <div className="grid grid-cols-2 gap-4">
-                <input
-                  type="number"
-                  name="age"
-                  placeholder="Age (18-70)"
-                  min="18"
-                  max="70"
-                  value={formData.age}
-                  onChange={handleChange}
-                  className="border p-3 rounded"
-                />
+          {/* SECTION 1 */}
+          <div className="bg-white p-6 rounded-xl shadow border">
+            <h2 className="font-semibold text-gray-700 mb-4">Basic Details</h2>
 
-                <select
-                  name="gender"
-                  value={formData.gender}
-                  onChange={handleChange}
-                  className="border p-3 rounded"
-                >
-                  <option value="">Gender</option>
-                  <option>Male</option>
-                  <option>Female</option>
-                  <option>Other</option>
-                </select>
-
-                <select
-                  name="family_history"
-                  value={formData.family_history}
-                  onChange={handleChange}
-                  className="border p-3 rounded"
-                >
-                  <option value="">Family History of Anxiety/Panic</option>
-                  <option>Yes</option>
-                  <option>No</option>
-                  <option>Dont know</option>
-                </select>
-
-                <select
-                  name="previous_anxiety"
-                  value={formData.previous_anxiety}
-                  onChange={handleChange}
-                  className="border p-3 rounded"
-                >
-                  <option value="">Previously Diagnosed Anxiety</option>
-                  <option>Yes</option>
-                  <option>No</option>
-                </select>
-              </div>
-            </div>
-
-            {/* SECTION 2 */}
-
-            <div className="bg-white p-6 rounded-xl shadow">
-              <h2 className="text-xl font-semibold mb-6">
-                Section 2: Recent Panic Experience (Last 30 Days)
-              </h2>
+            <div className="grid grid-cols-2 gap-4">
+              <input
+                type="number"
+                name="Age"
+                placeholder="Age"
+                min="18"
+                max="70"
+                value={form.Age}
+                onChange={handleChange}
+                className="border p-2 rounded"
+              />
 
               <select
-                name="panic_frequency"
-                value={formData.panic_frequency}
+                name="Gender"
+                value={form.Gender}
                 onChange={handleChange}
-                className="border p-3 rounded w-full mb-4"
+                className="border p-2 rounded"
               >
-                <option value="">Panic attacks in last 30 days</option>
-                <option>None</option>
-                <option>1-2</option>
-                <option>3-5</option>
-                <option>More than 5</option>
+                <option value="">Select Gender</option>
+                <option>Male</option>
+                <option>Female</option>
+                <option>Other</option>
+              </select>
+            </div>
+          </div>
+
+          {/* SECTION 2 */}
+          <div className="bg-white p-6 rounded-xl shadow border">
+            <h2 className="font-semibold text-gray-700 mb-4">
+              Panic Attack Details
+            </h2>
+
+            <div className="grid grid-cols-2 gap-4">
+              <select
+                name="Panic_Attack_Frequency"
+                value={form.Panic_Attack_Frequency}
+                onChange={handleChange}
+                className="border p-2 rounded"
+              >
+                <option value="">Frequency</option>
+                <option value="0">None</option>
+                <option value="2">1–2</option>
+                <option value="4">3–5</option>
+                <option value="6">More than 5</option>
               </select>
 
-              <p className="font-medium mb-2">When do they usually happen?</p>
+              <select
+                name="Duration_Minutes"
+                value={form.Duration_Minutes}
+                onChange={handleChange}
+                className="border p-2 rounded"
+              >
+                <option value="">Duration</option>
+                <option value="3">Less than 5 min</option>
+                <option value="10">5–15 min</option>
+                <option value="20">More than 15 min</option>
+              </select>
 
-              <div className="grid grid-cols-2 gap-2 mb-4">
-                {[
-                  "During stress",
-                  "In crowded places",
-                  "At night",
-                  "Without reason",
-                  "Before exams/work",
-                ].map((item) => (
-                  <label key={item}>
-                    <input
-                      type="checkbox"
-                      value={item}
-                      onChange={() => handleTrigger(item)}
-                      className="mr-2"
-                    />
+              <select
+                name="Trigger"
+                value={form.Trigger}
+                onChange={handleChange}
+                className="border p-2 rounded col-span-2"
+              >
+                <option value="">Trigger</option>
+                <option>Stress</option>
+                <option>Crowds</option>
+                <option>Night</option>
+                <option>Random</option>
+              </select>
+            </div>
+          </div>
 
-                    {item}
-                  </label>
+          {/* SECTION 3 */}
+          <div className="bg-white p-6 rounded-xl shadow border">
+            <h2 className="font-semibold text-gray-700 mb-4">
+              Symptoms Severity (0–5)
+            </h2>
+
+            <div className="grid grid-cols-2 gap-4">
+              <Slider label="Heart Rate" name="Heart_Rate" />
+              <Slider label="Sweating" name="Sweating" />
+              <Slider label="Shortness of Breath" name="Shortness_of_Breath" />
+              <Slider label="Dizziness" name="Dizziness" />
+              <Slider label="Chest Pain" name="Chest_Pain" />
+              <Slider label="Trembling" name="Trembling" />
+            </div>
+          </div>
+
+          {/* SECTION 4 */}
+          <div className="bg-white p-6 rounded-xl shadow border">
+            <h2 className="font-semibold text-gray-700 mb-4">Lifestyle</h2>
+
+            <div className="grid grid-cols-2 gap-4">
+              <input
+                type="number"
+                name="Sleep_Hours"
+                placeholder="Sleep Hours"
+                value={form.Sleep_Hours}
+                onChange={handleChange}
+                className="border p-2 rounded"
+              />
+
+              <select
+                name="Caffeine_Intake"
+                value={form.Caffeine_Intake}
+                onChange={handleChange}
+                className="border p-2 rounded"
+              >
+                <option value="">Caffeine</option>
+                <option value="0">None</option>
+                <option value="2">1–2</option>
+                <option value="4">3–4</option>
+                <option value="6">More</option>
+              </select>
+
+              <select
+                name="Alcohol_Consumption"
+                value={form.Alcohol_Consumption}
+                onChange={handleChange}
+                className="border p-2 rounded"
+              >
+                <option value="">Alcohol</option>
+                <option value="0">None</option>
+                <option value="2">Occasional</option>
+                <option value="4">Frequent</option>
+              </select>
+
+              <select
+                name="Smoking"
+                value={form.Smoking}
+                onChange={handleChange}
+                className="border p-2 rounded"
+              >
+                <option value="">Smoking</option>
+                <option value="1">Yes</option>
+                <option value="0">No</option>
+              </select>
+
+              <select
+                name="Exercise_Frequency"
+                value={form.Exercise_Frequency}
+                onChange={handleChange}
+                className="border p-2 rounded"
+              >
+                <option value="">Exercise</option>
+                <option value="3">Regular</option>
+                <option value="1">Sometimes</option>
+                <option value="0">None</option>
+              </select>
+            </div>
+          </div>
+
+          {/* SECTION 5 */}
+          <div className="bg-white p-6 rounded-xl shadow border">
+            <h2 className="font-semibold text-gray-700 mb-4">
+              Medical History
+            </h2>
+
+            <div className="grid grid-cols-2 gap-4">
+              <select
+                name="Medical_History"
+                value={form.Medical_History}
+                onChange={handleChange}
+                className="border p-2 rounded"
+              >
+                <option value="">Medical History</option>
+                <option value="1">Yes</option>
+                <option value="0">No</option>
+              </select>
+
+              <select
+                name="Medication"
+                value={form.Medication}
+                onChange={handleChange}
+                className="border p-2 rounded"
+              >
+                <option value="">Medication</option>
+                <option value="1">Yes</option>
+                <option value="0">No</option>
+              </select>
+            </div>
+          </div>
+
+          {/* SUBMIT */}
+          <button
+            onClick={handleSubmit}
+            className="bg-blue-600 text-white px-6 py-2 rounded-lg hover:bg-blue-700"
+          >
+            Submit Assessment
+          </button>
+
+          {/* RESULT */}
+          {result && (
+            <div className="bg-white p-6 rounded-xl shadow border mt-6">
+              <h2 className="font-semibold text-lg text-gray-700 mb-2">
+                Result
+              </h2>
+
+              <p>Risk Score: {result.risk_score}%</p>
+              <p>Severity: {result.severity}</p>
+              <p>Trend: {result.trend}</p>
+
+              <p className="mt-2 font-medium">
+                Influential Factors:
+              </p>
+              <ul className="list-disc ml-6">
+                {result.top_factors.map((f, i) => (
+                  <li key={i}>{f}</li>
                 ))}
-              </div>
-
-              <select
-                name="attack_duration"
-                value={formData.attack_duration}
-                onChange={handleChange}
-                className="border p-3 rounded w-full mb-4"
-              >
-                <option value="">Average attack duration</option>
-                <option>{"<5 min"}</option>
-                <option>5-15 min</option>
-                <option>{">15 min"}</option>
-              </select>
-
-              <select
-                name="activity_impact"
-                value={formData.activity_impact}
-                onChange={handleChange}
-                className="border p-3 rounded w-full"
-              >
-                <option value="">Do attacks affect daily activities?</option>
-                <option>No</option>
-                <option>Sometimes</option>
-                <option>Frequently</option>
-              </select>
+              </ul>
             </div>
-
-            {/* SECTION 3 */}
-
-            <div className="bg-white p-6 rounded-xl shadow">
-              <h2 className="text-xl font-semibold mb-6">
-                Section 3: Symptoms During Attack
-              </h2>
-
-              <div className="grid grid-cols-2 gap-3">
-                {[
-                  ["fast_heartbeat", "Fast heartbeat"],
-                  ["sweating", "Sweating"],
-                  ["shaking", "Shaking"],
-                  ["dizziness", "Dizziness"],
-                  ["chest_discomfort", "Chest discomfort"],
-                  ["shortness_breath", "Shortness of breath"],
-                  ["nausea", "Nausea"],
-                  ["fear_losing_control", "Fear of losing control"],
-                  ["fear_dying", "Fear of dying"],
-                  ["detached_reality", "Feeling detached from reality"],
-                ].map(([key, label]) => (
-                  <label key={key}>
-                    <input
-                      type="checkbox"
-                      name={key}
-                      onChange={handleSymptom}
-                      className="mr-2"
-                    />
-
-                    {label}
-                  </label>
-                ))}
-              </div>
-            </div>
-
-            {/* SECTION 4 */}
-
-            <div className="bg-white p-6 rounded-xl shadow">
-              <h2 className="text-xl font-semibold mb-6">
-                Section 4: Stress Level
-              </h2>
-
-              <select
-                name="stress_level"
-                value={formData.stress_level}
-                onChange={handleChange}
-                className="border p-3 rounded w-full"
-              >
-                <option value="">Current Stress Level</option>
-                <option>Low</option>
-                <option>Moderate</option>
-                <option>High</option>
-              </select>
-            </div>
-
-            {/* SECTION 5 */}
-
-            <div className="bg-white p-6 rounded-xl shadow">
-              <h2 className="text-xl font-semibold mb-6">
-                Section 5: Lifestyle Factors
-              </h2>
-
-              <div className="grid grid-cols-2 gap-4">
-                <select
-                  name="sleep_hours"
-                  onChange={handleChange}
-                  className="border p-3 rounded"
-                >
-                  <option value="">Sleep Hours</option>
-                  <option>{"<5"}</option>
-                  <option>5-7</option>
-                  <option>{">7"}</option>
-                </select>
-
-                <select
-                  name="sleep_quality"
-                  onChange={handleChange}
-                  className="border p-3 rounded"
-                >
-                  <option value="">Sleep Quality</option>
-                  <option>Good</option>
-                  <option>Disturbed</option>
-                  <option>Very poor</option>
-                </select>
-
-                <select
-                  name="caffeine"
-                  onChange={handleChange}
-                  className="border p-3 rounded"
-                >
-                  <option value="">Caffeine Intake</option>
-                  <option>None</option>
-                  <option>1-2</option>
-                  <option>3-4</option>
-                  <option>{">4"}</option>
-                </select>
-
-                <select
-                  name="alcohol"
-                  onChange={handleChange}
-                  className="border p-3 rounded"
-                >
-                  <option value="">Alcohol Use</option>
-                  <option>None</option>
-                  <option>Occasionally</option>
-                  <option>Frequently</option>
-                </select>
-
-                <select
-                  name="smoking"
-                  onChange={handleChange}
-                  className="border p-3 rounded"
-                >
-                  <option value="">Smoking</option>
-                  <option>Yes</option>
-                  <option>No</option>
-                </select>
-
-                <select
-                  name="screen_time"
-                  onChange={handleChange}
-                  className="border p-3 rounded"
-                >
-                  <option value="">Screen Time</option>
-                  <option>{"<2 hrs"}</option>
-                  <option>2-5 hrs</option>
-                  <option>{">5 hrs"}</option>
-                </select>
-
-                <select
-                  name="physical_activity"
-                  onChange={handleChange}
-                  className="border p-3 rounded"
-                >
-                  <option value="">Physical Activity</option>
-                  <option>Regular</option>
-                  <option>Sometimes</option>
-                  <option>None</option>
-                </select>
-
-                <select
-                  name="social_support"
-                  onChange={handleChange}
-                  className="border p-3 rounded"
-                >
-                  <option value="">Social Support</option>
-                  <option>Strong</option>
-                  <option>Moderate</option>
-                  <option>Weak</option>
-                </select>
-              </div>
-            </div>
-
-            {/* SECTION 6 */}
-
-            <div className="bg-white p-6 rounded-xl shadow">
-              <h2 className="text-xl font-semibold mb-6">
-                Section 6: Psychiatric History
-              </h2>
-
-              <div className="grid grid-cols-2 gap-2">
-                {[
-                  "None",
-                  "Anxiety Disorder",
-                  "Depression",
-                  "Panic Disorder",
-                  "PTSD",
-                  "Other",
-                ].map((item) => {
-                  const isNoneOption = item === "None";
-                  const isNoneSelected = formData.psychiatric_history.includes("None");
-
-                  return (
-                    <label key={item}>
-                      <input
-                        type="checkbox"
-                        value={item}
-                        checked={formData.psychiatric_history.includes(item)}
-                        disabled={isNoneOption ? !isNoneSelected && formData.psychiatric_history.length > 0 : isNoneSelected}
-                        onChange={() => handlePsychHistory(item)}
-                        className="mr-2"
-                      />
-
-                      {item}
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700"
-            >
-              {loading ? "Submitting..." : "Submit Assessment"}
-            </button>
-          </form>
+          )}
         </div>
       </div>
-      <PredictionResultModal result={result} onClose={() => setResult(null)} />
     </div>
   );
 }
