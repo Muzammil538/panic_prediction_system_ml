@@ -33,6 +33,13 @@ app.config["JWT_ACCESS_TOKEN_EXPIRES"] = timedelta(hours=5)
 # Strong JWT secret (32+ chars)
 app.config["JWT_SECRET_KEY"] = "super-secret-key-change-this-very-long-secure-2026"
 
+# When False, all doctor-specific endpoints are disabled and return a consistent message.
+DOCTOR_FEATURE_ENABLED = False
+
+def doctor_feature_disabled_response():
+    return jsonify({"message": "Doctor feature is disabled"}), 403
+
+
 db = SQLAlchemy(app)
 jwt = JWTManager(app)
 bcrypt = Bcrypt(app)
@@ -185,115 +192,116 @@ def login():
 # ===============================
 # Predict (Patient Only)
 # ===============================
-
 @app.route("/predict", methods=["POST"])
 @jwt_required()
 def predict():
+    try:
+        user_id = int(get_jwt_identity())
+        data = request.json
 
-    import pandas as pd
+        # Load artifacts
+        model = joblib.load("model.pkl")
+        tfidf = joblib.load("tfidf.pkl")
+        feature_names = joblib.load("features.pkl")
 
-    patient_id = int(get_jwt_identity())
-    data = request.json
+        # -----------------------------
+        # 1. TF-IDF (Symptoms)
+        # -----------------------------
+        symptoms_text = data.get("Symptoms", "")
+        symptoms_vector = tfidf.transform([symptoms_text]).toarray()[0]
 
-    # -----------------------
-    # Create input dataframe
-    # -----------------------
+        # -----------------------------
+        # 2. Numeric Features
+        # -----------------------------
+        numeric_feature_names = feature_names[:-len(symptoms_vector)]
 
-    input_dict = {}
+        numeric_values = []
+        for feature in numeric_feature_names:
+            numeric_values.append(data.get(feature, 0))
 
-    for feature in features:
-        input_dict[feature] = data.get(feature, 0)
+        # -----------------------------
+        # 3. Final Input
+        # -----------------------------
+        final_input = np.array(numeric_values + list(symptoms_vector)).reshape(1, -1)
 
-    input_df = pd.DataFrame([input_dict])
+        # -----------------------------
+        # 4. Prediction
+        # -----------------------------
+        prediction = model.predict(final_input)[0]
+        prob = model.predict_proba(final_input)[0][1]
 
+        risk_score = round(prob * 100, 2)
 
-    # -----------------------
-    # Prediction
-    # -----------------------
-
-    prediction = model.predict(input_df)[0]
-    probabilities = model.predict_proba(input_df)[0]
-
-    risk_score = round(probabilities[1] * 100, 2)
-    severity = calculate_severity(risk_score)
-
-
-    # -----------------------
-    # Previous Assessment
-    # -----------------------
-
-    previous = Assessment.query.filter_by(
-        patient_id=patient_id
-    ).order_by(Assessment.timestamp.desc()).first()
-
-    previous_risk = None
-    trend = "First Assessment"
-
-    if previous:
-        previous_risk = previous.risk_score
-
-        if risk_score > previous_risk:
-            trend = "Risk Increased"
-        elif risk_score < previous_risk:
-            trend = "Risk Decreased"
+        # -----------------------------
+        # 5. Severity
+        # -----------------------------
+        if risk_score < 40:
+            severity = "Low"
+        elif risk_score < 70:
+            severity = "Moderate"
         else:
-            trend = "Risk Stable"
+            severity = "High"
 
+        # -----------------------------
+        # 6. Previous Comparison
+        # -----------------------------
+        last_record = (
+            Assessment.query
+            .filter_by(patient_id=user_id)
+            .order_by(Assessment.timestamp.desc())
+            .first()
+        )
 
-    # -----------------------
-    # Save Assessment
-    # -----------------------
+        previous_risk = last_record.risk_score if last_record else None
 
-    assessment = Assessment(
-        patient_id=patient_id,
-        risk_score=risk_score,
-        severity=severity
-    )
+        if previous_risk is None:
+            trend = "No Previous Data"
+        else:
+            diff = risk_score - previous_risk
+            if abs(diff) < 2:
+                trend = "Stable"
+            elif diff > 0:
+                trend = "Risk Increased"
+            else:
+                trend = "Risk Decreased"
 
-    db.session.add(assessment)
-    db.session.commit()
+        # -----------------------------
+        # 7. Influential Factors
+        # -----------------------------
+        importances = model.feature_importances_
+        top_indices = np.argsort(importances)[-5:]
 
+        top_factors = [feature_names[i] for i in top_indices]
 
-    # -----------------------
-    # Influential Factors (REAL FIX 🔥)
-    # -----------------------
+        # -----------------------------
+        # 8. Save Assessment
+        # -----------------------------
+        assessment = Assessment(
+            patient_id=user_id,
+            risk_score=risk_score,
+            severity=severity
+        )
 
-    # per-input contribution
-    contributions = input_df.iloc[0] * model.feature_importances_
+        db.session.add(assessment)
+        db.session.commit()
 
-    top = contributions.sort_values(ascending=False).head(3)
+        # -----------------------------
+        # 9. Response
+        # -----------------------------
+        return jsonify({
+            "assessment_id": int(assessment.id),
+            "risk_score": float(risk_score),
+            "severity": severity,
+            "previous_risk": float(previous_risk) if previous_risk is not None else None,
+            "trend": trend,
+            "top_factors": top_factors,
+            "date": assessment.timestamp.strftime("%Y-%m-%d"),
+            "time": assessment.timestamp.strftime("%H:%M")
+        })
 
-    # Make readable names
-    readable = {
-        "Heart_Rate": "High Heart Rate",
-        "Sweating": "Excess Sweating",
-        "Shortness_of_Breath": "Breathing Difficulty",
-        "Chest_Pain": "Chest Pain",
-        "Dizziness": "Dizziness",
-        "Trembling": "Trembling",
-        "Sleep_Hours": "Poor Sleep",
-        "Alcohol_Consumption": "Alcohol Usage",
-        "Smoking": "Smoking Habit",
-        "Caffeine_Intake": "High Caffeine"
-    }
-
-    top_factors = [readable.get(f, f) for f in top.index]
-
-
-    # -----------------------
-    # Response
-    # -----------------------
-
-    return jsonify({
-        "assessment_id": assessment.id,
-        "risk_score": risk_score,
-        "severity": severity,
-        "previous_risk": previous_risk,
-        "trend": trend,
-        "top_factors": top_factors,
-        "date": assessment.timestamp.strftime("%Y-%m-%d"),
-        "time": assessment.timestamp.strftime("%H:%M")
-    })
+    except Exception as e:
+        print("ERROR:", str(e))
+        return jsonify({"error": "Prediction failed"}), 500
 # ===============================
 # History (Patient Only)
 # ===============================
@@ -327,6 +335,8 @@ def history():
 @app.route("/doctors", methods=["GET"])
 @jwt_required()
 def get_doctors():
+    if not DOCTOR_FEATURE_ENABLED:
+        return doctor_feature_disabled_response()
 
     doctors = User.query.filter_by(role="doctor").all()
 
@@ -342,6 +352,8 @@ def get_doctors():
 @app.route("/request-doctor", methods=["POST"])
 @jwt_required()
 def request_doctor():
+    if not DOCTOR_FEATURE_ENABLED:
+        return doctor_feature_disabled_response()
 
     user = get_current_user()
 
@@ -381,6 +393,8 @@ def request_doctor():
 @app.route("/doctor/requests", methods=["GET"])
 @jwt_required()
 def doctor_requests():
+    if not DOCTOR_FEATURE_ENABLED:
+        return doctor_feature_disabled_response()
 
     user = get_current_user()
 
@@ -409,6 +423,9 @@ def doctor_requests():
 @app.route("/doctor/patients", methods=["GET"])
 @jwt_required()
 def doctor_patients():
+    if not DOCTOR_FEATURE_ENABLED:
+        return doctor_feature_disabled_response()
+
     user = get_current_user()
 
     if user.role != "doctor":
@@ -447,6 +464,8 @@ def doctor_patients():
 @app.route("/doctor/accept", methods=["POST"])
 @jwt_required()
 def accept_request():
+    if not DOCTOR_FEATURE_ENABLED:
+        return doctor_feature_disabled_response()
 
     user = get_current_user()
 
@@ -476,6 +495,8 @@ def accept_request():
 @app.route("/doctor/patient/<int:patient_id>", methods=["GET"])
 @jwt_required()
 def patient_reports(patient_id):
+    if not DOCTOR_FEATURE_ENABLED:
+        return doctor_feature_disabled_response()
 
     user = get_current_user()
 
@@ -509,6 +530,8 @@ def patient_reports(patient_id):
 @app.route("/patient/doctor-status", methods=["GET"])
 @jwt_required()
 def doctor_status():
+    if not DOCTOR_FEATURE_ENABLED:
+        return jsonify({"status": "none"})
 
     user = get_current_user()
 

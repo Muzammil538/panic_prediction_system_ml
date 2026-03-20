@@ -3,6 +3,8 @@ import API from "../../services/api";
 import PatientSidebar from "../../components/patient/PatientSidebar";
 import PatientHeader from "../../components/patient/PatientHeader";
 
+const DOCTOR_FEATURE_ENABLED = false;
+
 export default function MyDoctor() {
 
   const [doctors, setDoctors] = useState([]);
@@ -21,6 +23,17 @@ export default function MyDoctor() {
       console.error("Error fetching doctors:", err.response?.data || err.message);
     }
   };
+
+  if (!DOCTOR_FEATURE_ENABLED) {
+    return (
+      <div className="flex bg-gray-50">
+        <div className="flex-1 p-8">
+          <h1 className="text-2xl font-bold mb-4">Doctor feature is currently disabled</h1>
+          <p className="text-gray-600">The doctor request and consulting workflow is not available at this time.</p>
+        </div>
+      </div>
+    );
+  }
 
   const sendRequest = async () => {
     if (!selectedDoctor) return alert("Please select a doctor");

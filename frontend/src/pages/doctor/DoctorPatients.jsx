@@ -7,7 +7,18 @@ import PatientsList from "../../components/doctor/PatientsList";
 import AnalyticsCards from "../../components/doctor/AnalyticsCards";
 import CollectiveChart from "../../components/doctor/CollectiveChart";
 
+const DOCTOR_FEATURE_ENABLED = false;
+
 export default function DoctorPatientsPage() {
+  if (!DOCTOR_FEATURE_ENABLED) {
+    return (
+      <div className="p-8">
+        <h1 className="text-2xl font-bold">Doctor feature is disabled</h1>
+        <p className="text-gray-600">Doctor functionality is currently commented out in this build.</p>
+      </div>
+    );
+  }
+
   const [patients, setPatients] = useState([]);
   const [avgRisk, setAvgRisk] = useState(0);
   const [severityData, setSeverityData] = useState([]);

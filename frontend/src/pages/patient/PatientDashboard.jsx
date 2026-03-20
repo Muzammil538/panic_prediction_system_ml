@@ -1,3 +1,4 @@
+/* eslint-disable no-use-before-define */
 import { useEffect, useState, useRef } from "react";
 import API from "../../services/api";
 import PatientSidebar from "../../components/patient/PatientSidebar";
@@ -5,6 +6,8 @@ import PatientHeader from "../../components/patient/PatientHeader";
 import RiskSummaryCard from "../../components/patient/RiskSummaryCard";
 import TrendChart from "../../components/patient/TrendChart";
 import LiveHealthChart from "../../components/LiveHealthChart";
+
+const DOCTOR_FEATURE_ENABLED = false;
 
 export default function PatientDashboard() {
   const [history, setHistory] = useState([]);
@@ -40,13 +43,15 @@ export default function PatientDashboard() {
   // Initial load and polling
   useEffect(() => {
     fetchHistory();
-    fetchDoctorStatus();
-
-    // Poll for doctor status updates every 5 seconds
-    pollIntervalRef.current = setInterval(() => {
-      console.log("Polling for doctor status updates...");
+    if (DOCTOR_FEATURE_ENABLED) {
       fetchDoctorStatus();
-    }, 5000);
+
+      // Poll for doctor status updates every 5 seconds
+      pollIntervalRef.current = setInterval(() => {
+        console.log("Polling for doctor status updates...");
+        fetchDoctorStatus();
+      }, 5000);
+    }
 
     return () => {
       if (pollIntervalRef.current) {
@@ -65,7 +70,7 @@ export default function PatientDashboard() {
     return () => clearInterval(interval);
   }, []);
 
-  const fetchHistory = async () => {
+  async function fetchHistory() {
     try {
       const res = await API.get("/history");
       setHistory(res.data);
@@ -77,9 +82,14 @@ export default function PatientDashboard() {
       );
       setLoading(false);
     }
-  };
+  }
 
-  const fetchDoctorStatus = async () => {
+  async function fetchDoctorStatus() {
+    if (!DOCTOR_FEATURE_ENABLED) {
+      setDoctorStatus({ status: "none" });
+      return;
+    }
+
     try {
       const res = await API.get("/patient/doctor-status");
       console.log("Doctor status response:", res.data);
@@ -90,7 +100,7 @@ export default function PatientDashboard() {
         err.response?.data || err.message,
       );
     }
-  };
+  }
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -99,14 +109,17 @@ export default function PatientDashboard() {
     setRefreshing(false);
   };
 
-  const fetchLiveData = async () => {
+  async function fetchLiveData() {
+    if (!DOCTOR_FEATURE_ENABLED) {
+      // Live health chart still works even when doctor feature is disabled.
+    }
     try {
       const res = await API.get("/live-data");
       setLiveData(res.data);
     } catch {
       console.log("Live data error");
     }
-  };
+  }
 
   // Format chart data (sorted by timestamp so tooltip works consistently)
   const trendData = [...history]
@@ -159,7 +172,9 @@ export default function PatientDashboard() {
                   </button>
                 </div>
 
-                {!doctorStatus || doctorStatus.status === "none" ? (
+                {!DOCTOR_FEATURE_ENABLED ? (
+                  <div className="text-gray-600">Doctor feature is disabled.</div>
+                ) : !doctorStatus || doctorStatus.status === "none" ? (
                   <div className="text-gray-600">No doctor selected yet.</div>
                 ) : doctorStatus.status === "pending" ? (
                   <div className="text-yellow-600 font-medium">

@@ -10,11 +10,11 @@ import PatientAssessment from "./pages/patient/Assessment";
 import MyDoctor from "./pages/patient/MyDoctor";
 import PatientHistory from "./pages/patient/PatientHistory";
 
-/* ================= DOCTOR PAGES ================= */
-import DoctorDashboard from "./pages/doctor/DoctorDashboard";
-import DoctorRequestsPage from "./pages/doctor/DoctorRequests.jsx";
-import DoctorPatientsPage from "./pages/doctor/DoctorPatients.jsx";
-import DoctorPatientReportsPage from "./pages/doctor/DoctorPatientReports.jsx";
+/* ================= DOCTOR PAGES (DISABLED) ================= */
+// import DoctorDashboard from "./pages/doctor/DoctorDashboard";
+// import DoctorRequestsPage from "./pages/doctor/DoctorRequests.jsx";
+// import DoctorPatientsPage from "./pages/doctor/DoctorPatients.jsx";
+// import DoctorPatientReportsPage from "./pages/doctor/DoctorPatientReports.jsx";
 
 
 
@@ -71,6 +71,8 @@ function App() {
 
         {/* ================= DOCTOR ROUTES ================= */}
 
+        {/* ================= DOCTOR ROUTES (DISABLED) ================= */}
+        {/*
         <Route
           path="/doctor/dashboard"
           element={
@@ -106,6 +108,7 @@ function App() {
             </RoleProtectedRoute>
           }
         />
+        */}
 
         {/* ================= DEFAULT REDIRECT ================= */}
         <Route path="*" element={<Navigate to="/" />} />
